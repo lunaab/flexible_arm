@@ -166,32 +166,77 @@ class System(object):
             self.nodes_mat[i,:] = self.nodes[i].pos
             self.mass_mat[i,0] = self.nodes[i].mass
         
-    def calculatePE(self):
+    def calculatePE(self, new_pos, new_orient):
+        nodes_mat = new_pos
+        node1_mat = np.copy(self.node1_mat)
+        node2_mat = np.copy(self.node2_mat)
+            
+        for i in range(0, len(self.connections)):
+            curr_spring = self.springs[i]
+            curr_connect = self.connections[i]
+            if curr_connect[0] < self.num_free:
+                node1_mat[i,:] = new_pos[curr_connect[0],:]
+            if curr_connect[1] < self.num_free:
+                node2_mat[i,:] = new_pos[curr_connect[1],:]
+                
+    
         #start = time.time()
         PE = 0
         
-        dist = np.sqrt(np.sum((self.node1_mat - self.node2_mat)**2, axis=1)).reshape(len(self.springs), 1)
+        dist = np.sqrt(np.sum((node1_mat - node2_mat)**2, axis=1)).reshape(len(self.springs), 1)
         
         PE = 0.5 * np.sum(self.k_mat * (dist - self.l0_mat)**2)
 
-        PE = PE + (-1*self.grav*np.dot(self.nodes_mat[:,self.grav_coord],self.mass_mat))
+        PE = PE + (-1*self.grav*np.dot(nodes_mat[:,self.grav_coord],self.mass_mat))
         #end = time.time()
         #print 'FUNC TIME: %f' % (end-start)
         return PE
         
-    def calculatePEJacobian(self):
+    def calculatePEGradient(self, param_vec):
+    
+        new_pos = np.reshape(param_vec[0:self.num_free*self.dims], (self.num_free, self.dims))
+        new_orient = np.reshape(param_vec[self.num_free*self.dims:len(param_vec)], (self.num_free, 3))
+        new_orient = new_orient % (2*np.pi)
+    
+        nodes_mat = new_pos
+        node1_mat = np.copy(self.node1_mat)
+        node2_mat = np.copy(self.node2_mat)
+            
+        for i in range(0, len(self.connections)):
+            curr_spring = self.springs[i]
+            curr_connect = self.connections[i]
+            if curr_connect[0] < self.num_free:
+                node1_mat[i,:] = new_pos[curr_connect[0],:]
+            if curr_connect[1] < self.num_free:
+                node2_mat[i,:] = new_pos[curr_connect[1],:]
+                
         #TODO
-        jac = np.zeros(self.dims*len(self.springs))
-        denom = np.sqrt(np.sum((self.node1_mat - self.node2_mat)**2, axis=1)).reshape(len(self.springs), 1)
-        numer = 0.5*self.k_mat*(self.node1_mat - self.node2_mat)
-        terms = (numer / denom).reshape(len(self.springs), 1)
+        gradient = np.zeros(self.dims*self.num_free*2)
+        denom = np.sqrt(np.sum((node1_mat - node2_mat)**2, axis=1)).reshape(len(self.springs), 1)
+        numer = self.k_mat*(node1_mat - node2_mat)*(denom-self.l0_mat)
+        terms = (numer / denom) #.reshape(len(self.springs), 1)
         grav = -1*self.mass_mat*self.grav
-        terms[:, 2] = terms[:,2] + grav
-        return terms.reshape(self.dims*len(self.springs)
+        #terms[:, self.grav_coord] = terms[:,self.grav_coord] + grav
+        
+        for i in range (0, len(self.connections)):
+            pair = self.connections[i]
+            if pair[0] < self.num_free:
+                gradient[(pair[0] * 3)] += terms[i, 0]
+                gradient[(pair[0] * 3) + 1] += terms[i, 1]
+                gradient[(pair[0] * 3) + 2] += terms[i, 2] + grav[pair[0]]
+                grav[pair[0]] = 0
+            if pair[1] < self.num_free:
+                gradient[(pair[1] * 3)] += -1 * terms[i, 0]
+                gradient[(pair[1] * 3) + 1] += -1 * terms[i, 1]
+                gradient[(pair[1] * 3) + 2] += -1*terms[i, 2] + grav[pair[1]]
+                grav[pair[1]] = 0
+                
+        
+        return gradient
         
         
     
-    #----------START NODE MANAGEMENT---------------#    
+    '''----------START NODE MANAGEMENT---------------'''    
     def connectNodes(self, connections):
         for i in range(0, len(connections)):
             self.springs[i].node1 = self.nodes[connections[i][0]]
@@ -219,7 +264,7 @@ class System(object):
         for i in range(0, self.num_free):
             self.nodes[i].move(new_pos[i,:], new_orient[i,:])
     
-    #------------STOP NODE MANAGEMENT------------------#
+    '''------------STOP NODE MANAGEMENT------------------'''
     def moveNodesFinal(self):
         i = 0
         for connection in self.connections:
@@ -238,14 +283,37 @@ class System(object):
         '''
             param_vec: 1d array (x,y,z,x,y,z,...,r,p,y,r,p,y,...)
         '''
+        #TODO Change PE and Grad to use this for processing param
+        #TODO PE will become obj function
         new_pos = np.reshape(param_vec[0:self.num_free*self.dims], (self.num_free, self.dims))
         new_orient = np.reshape(param_vec[self.num_free*self.dims:len(param_vec)], (self.num_free, 3))
         new_orient = new_orient % (2*np.pi)
         
-        self.moveNodesFast(new_pos, new_orient)
-        return self.calculatePE()
+        #self.moveNodesFast(new_pos, new_orient)
         
+        return self.calculatePE(new_pos, new_orient)
+    
+    def storeState(self, file_name):
+        f = open(file_name, 'w')
+        f.write('Free:' + str(self.num_free) + ', Fixed:' + str(self.num_fixed) + ', Dims:'
+                + str(self.dims) + '\n')
+                
+        for node in self.nodes:
+            f.write(str(node.pos[0]))
+            for i in range(1, self.dims):
+                f.write(',' + str(node.pos[i]))
+            f.write(',' + str(node.mass))
+            f.write('\n')
+            
+        for spring in self.springs:
+            f.write(str(self.nodes.index(spring.node1)) + ',' +
+                    str(self.nodes.index(spring.node2)) + ',' +
+                    str(spring.l0) + ',' + str(spring.k) + ',' +
+                    str(spring.beta) + '\n')
+            
+        f.close()
         
+              
     def visualize(self):
         fig = matplotlib.pyplot.figure()
         ax = fig.add_subplot(111, projection = '3d')
@@ -271,9 +339,86 @@ class System(object):
             ax.plot([x1[len(x1)-1], x2[len(x2)-1]], [y1[len(y1)-1], y2[len(y2)-1]], zs=[z1[len(z1)-1], z2[len(z2)-1]], color='r') 
         
         ax.scatter(x1 + x2, y1 + y2, z1 + z2, color = 'b')
-        #ax.plot([x1, x2], [y1, y2], zs=[z1, z2], color = 'r')
-         
-        #matplotlib.pyplot.show()      
+    
+    def visualize_springs(self, k_passive, k_active):
+        fig = matplotlib.pyplot.figure()
+        ax = fig.add_subplot(111, projection = '3d')
+        ax.set_xlim(-1.5, 1.5)
+        ax.set_ylim(-2, 2)
+        ax.set_zlim(2.5, 6)
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        x1 = [[], []]
+        x2 = [[], []]
+        y1 = [[], []]
+        y2 = [[], []]
+        z1 = [[], []]
+        z2 = [[], []]
+        for spring in self.springs:
+            if spring.k == k_passive:
+                x1[0].append(spring.node1.pos[0])
+                y1[0].append(spring.node1.pos[1])
+                z1[0].append(spring.node1.pos[2])
+                x2[0].append(spring.node2.pos[0])
+                y2[0].append(spring.node2.pos[1])
+                z2[0].append(spring.node2.pos[2])
+                ax.plot([x1[0][len(x1[0])-1], x2[0][len(x2[0])-1]], [y1[0][len(y1[0])-1], y2[0][len(y2[0])-1]], zs=[z1[0][len(z1[0])-1], z2[0][len(z2[0])-1]], color='r')
+            elif spring.k == k_active:
+                x1[1].append(spring.node1.pos[0])
+                y1[1].append(spring.node1.pos[1])
+                z1[1].append(spring.node1.pos[2])
+                x2[1].append(spring.node2.pos[0])
+                y2[1].append(spring.node2.pos[1])
+                z2[1].append(spring.node2.pos[2])
+                ax.plot([x1[1][len(x1[1])-1], x2[1][len(x2[1])-1]], [y1[1][len(y1[1])-1], y2[1][len(y2[1])-1]], zs=[z1[1][len(z1[1])-1], z2[1][len(z2[1])-1]], color='g')
+            
+        
+        ax.scatter(x1[0] + x2[0] + x1[1] + x2[1],
+                   y1[0] + y2[0] + y1[1] + y2[1],
+                   z1[0] + z2[0] + z1[1] + z2[1], color = 'b') 
+        
+    def visualize_specific_springs(self, target_springs_idx):
+        fig = matplotlib.pyplot.figure()
+        ax = fig.add_subplot(111, projection = '3d')
+        #ax.set_xlim(-1.5, 1.5)
+        #ax.set_ylim(-2, 2)
+        #ax.set_zlim(2.5, 6)
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        x1 = []
+        x2 = []
+        y1 = []
+        y2 = []
+        z1 = []
+        z2 = []
+        for spring in self.springs:
+            x1.append(spring.node1.pos[0])
+            y1.append(spring.node1.pos[1])
+            z1.append(spring.node1.pos[2])
+            x2.append(spring.node2.pos[0])
+            y2.append(spring.node2.pos[1])
+            z2.append(spring.node2.pos[2])
+            ax.plot([x1[len(x1)-1], x2[len(x2)-1]], [y1[len(y1)-1], y2[len(y2)-1]], zs=[z1[len(z1)-1], z2[len(z2)-1]], color='r') 
+        
+        ax.scatter(x1 + x2, y1 + y2, z1 + z2, color = 'b')
+        
+        x1 = []
+        x2 = []
+        y1 = []
+        y2 = []
+        z1 = []
+        z2 = []
+        for idx in target_springs_idx:
+            x1.append(self.springs[idx].node1.pos[0])
+            y1.append(self.springs[idx].node1.pos[1])
+            z1.append(self.springs[idx].node1.pos[2])
+            x2.append(self.springs[idx].node2.pos[0])
+            y2.append(self.springs[idx].node2.pos[1])
+            z2.append(self.springs[idx].node2.pos[2])
+            ax.plot([x1[len(x1)-1], x2[len(x2)-1]], [y1[len(y1)-1], y2[len(y2)-1]], zs=[z1[len(z1)-1], z2[len(z2)-1]], color='g')
+             
     
     
     
