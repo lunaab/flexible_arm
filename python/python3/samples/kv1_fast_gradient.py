@@ -7,6 +7,10 @@ import time
 import BodiesFast as bds
 import BodyBuilderFast as bld
 
+'''
+This file build a kv1 hexagonal close packed structure and activates the 6th tendon
+'''
+
 springs_of_interest = [6]
 
 # World Information
@@ -67,10 +71,12 @@ connections = [(0,1), (0,2), (0,3), (0,4), (0,5), (0,6), (0,7), (0,8), (0,9), (0
 model = bds.System(nodes_free, nodes_fixed, springs, connections, 2, g)
 model.visualize_springs(k_passive, k_active)
 #plt.show()
-print '_________________ORIGINAL___________________'
+# Show the initial node positions
+print('_________________ORIGINAL___________________')
 for node in nodes_free:
-    print node.pos
+    print(node.pos)
 
+# Order the poses
 x0_pos = n0.pos
 x0_orient = n0.orient
 for i in range(1,10):
@@ -78,18 +84,18 @@ for i in range(1,10):
     x0_orient = np.append(x0_orient, nodes_free[i].orient)
 x0 = np.append(x0_pos, x0_orient)
 start = time.time()
-res = minimize(model.modelFunction, x0, method='BFGS', tol=1e-6, options={'gtol': 1e-6, 'disp': True}) #jac = model.calculatePEGradient
+
+# Move the system by minimizing potential energy
+res = minimize(model.modelFunction, x0, jac = model.calculatePEGradient, method='BFGS', tol=1e-6, options={'gtol': 1e-6, 'disp': True})
 model.moveNodes(res.x)
+
 end = time.time()
-print 'TIME: %f' % (end-start)
-#print 'ITERATIONS: %d' % res.nit
-#print 'EVALS: %d' % res.nfev
-#print 'VALUE: %f' % res.fun
-print '_________________AFTER___________________'
+print('TIME: ', (end-start))
+# Show the final node positions
+print('_________________AFTER___________________')
 for node in nodes_free:
-    print node.pos
-print 'Gradient Norm: ' + str(np.sqrt(np.sum(model.calculatePEGradient(res.x)**2)))
-#print model.l0_mat
+    print(node.pos)
+print('Gradient Norm: ', str(np.sqrt(np.sum(model.calculatePEGradient(res.x)**2))))
 model.visualize_springs(k_passive, k_active)
 plt.show()
 

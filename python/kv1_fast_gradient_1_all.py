@@ -22,7 +22,7 @@ beta_passive = 0
 beta_active = 0
 mass = 0.008377575
 
-for i in range(0, 36):
+for w in range(0, 36):
 
     # Nodes Free
     n0 = bds.Node(mass, np.array([-0.00000,	0.00000, 3.98789]), np.zeros(3,), isFixed=False)
@@ -44,7 +44,7 @@ for i in range(0, 36):
     nodes_fixed = [n10, n11, n12]
 
     # Springs
-    springs_of_interest = [i]
+    springs_of_interest = [w]
     springs = []
     for j in range(0, 36):
         if j in springs_of_interest:
@@ -55,16 +55,10 @@ for i in range(0, 36):
 
 # Connections nodes = [free,fixed]
     connections = [(0,1), (0,2), (0,3), (0,4), (0,5), (0,6), (0,7), (0,8), (0,9), (0,10), (0,11), (0,12),  
-                   (1,2), (1,6), (1,7), (1,10),
-                   (2,3), (2,7), (2,10),
-                   (3,4), (3,8), (3,11), 
-                   (4,5), (4,8), (4,11),
-                   (5,6), (5,9), (5,12),
-                   (6,9), (6,12),
-                   (7,8), (7,9), 
-                   (8,9),
-                   (10,11), (10,12),
-                   (11,12)]
+               (1,2), (2,3), (3,4), (4,5), (5,6), (6,1), (7,8),
+               (8,9), (9,7), (10,11), (11,12), (12,10),
+               (1,7), (2,7), (3,8), (4,8), (5,9), (6,9), (1,10), (2,10),
+               (3,11), (4,11), (5,12), (6,12)]
 
     # Make the system
     model = bds.System(nodes_free, nodes_fixed, springs, connections, 2, g)
@@ -91,7 +85,7 @@ for i in range(0, 36):
     print '_________________AFTER___________________'
     for node in nodes_free:
         print node.pos
-    file_name = 'k1_v2_luna/t_' + str(springs_of_interest[0]) + '.txt'
+    file_name = 'k1_v2/k1_v2_luna/t_' + str(springs_of_interest[0]) + '.txt'
     model.storeState(file_name)
     #print model.l0_mat
     #model.visualize_springs(k_passive, k_active)
