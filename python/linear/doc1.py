@@ -2,6 +2,8 @@ import numpy as np
 import copy
 import sys
 from scipy.optimize import minimize
+from scipy.optimize import dual_annealing
+from scipy.optimize import differential_evolution
 import matplotlib.pyplot as plt
 
 class LinearSystem(object):
@@ -21,12 +23,12 @@ class LinearSystem(object):
         gamma_arr = abc_arr[2*n+1:3*n+1]*gammas[0] + (1-abc_arr[2*n+1:3*n+1])*gammas[1]
         
         xys_arr = self.find_xys_given_abg(num_nodes, alpha_arr, beta_arr, gamma_arr)
-        #xys_arr = xys_arr.reshape(num_nodes, 3)
+        xys_arr = xys_arr.reshape(num_nodes, 3)
         
-        #xy_arr = xys_arr[:,0:2]
+        xy_arr = xys_arr[:,0:2]
         #xy_arr = xy_arr.flatten()
         xy_target_arr = xy_target_arr.reshape((n,2))
-        x_target = xy_target_arr[:,0]
+        '''x_target = xy_target_arr[:,0]
         y_target = xy_target_arr[:,1]
 
         x = np.zeros((n,))
@@ -40,13 +42,17 @@ class LinearSystem(object):
             y[i] = xys_arr[i*3 + 1] + y[i-1]
             s[i] = xys_arr[i*3 + 2] + s[i-1]
             x_target[i] = x_target[i-1]+x_target[i]
-            y_target[i] = y_target[i-1]+y_target[i]
-            
+            y_target[i] = y_target[i-1]+y_target[i]'''
         
-        #error = np.sum(np.absolute(xy_target_arr - xy_arr))
-        error = 0
-        error = error + np.sum(np.absolute(x_target - x))
-        error = error + np.sum(np.absolute(y_target - y))
+        #print xy_arr
+        #print xy_target_arr
+        #print np.absolute(xy_target_arr - xy_arr)
+        
+        error = np.sum(np.sum((xy_target_arr - xy_arr)**2, axis=1))
+        #error = np.sum(np.sqrt(np.sum((xy_target_arr - xy_arr)**2, axis=1)))
+        #error = 0
+        #error = error + np.sum(np.absolute(x_target - x))
+        #error = error + np.sum(np.absolute(y_target - y))
         
         return error
   
@@ -112,17 +118,30 @@ gamma_arr = 5*np.random.random((n,))
 ls = LinearSystem(m_arr, L, g)
 
 
-abc_arr = np.zeros((3*n+1,))
-alphas = [1, 3]
-betas = [1, 3]
-gammas = [1, 3]
-xy_target_arr = np.random.random((n*2,))
-xy_target_arr = xy_target_arr.reshape((n,2))
-xy_target_arr[:,1] = -0.1 * xy_target_arr[:,1]
-xy_target_arr = xy_target_arr.flatten()
+abc_arr = 0.5 + np.zeros((3*n+1,))
+bounds = np.zeros((3*n+1,2))
+bounds[:,1] = 1
+alphas = [0.1, 5]
+betas = [0.1, 5]
+gammas = [0.1, 5]
+
+xys = ls.find_xys_given_abg(n, alpha_arr, beta_arr, gamma_arr)
+xys = xys.reshape(n,3)
+xys = xys[:,0:2]
+xy_target_arr = xys.flatten()
+#xy_target_arr = np.random.random((n*2,))
+#xy_target_arr = xy_target_arr.reshape((n,2))
+#xy_target_arr[:,1] = -0.1 * (xy_target_arr[:,1] - 0.3)
+#xy_target_arr = xy_target_arr.flatten()
 res = minimize(ls.obj_func_L1, abc_arr, args=(xy_target_arr,
                                               alphas, betas, gammas, n),
-               method='BFGS')
+               method='BFGS', options={'gtol': 1e-6, 'disp': True})
+print(res.x)
+#res = dual_annealing(ls.obj_func_L1, bounds, args=(xy_target_arr, alphas, betas, gammas, n),
+#                     x0 = res.x)
+#res = differential_evolution(ls.obj_func_L1, bounds, args=(xy_target_arr, alphas, betas, gammas, n))
+print(res.x)
+print(ls.obj_func_L1(res.x, xy_target_arr, alphas, betas, gammas, n))
 
 alpha_arr = res.x[0:n]*alphas[0] + (1-res.x[0:n])*alphas[1]
 beta_arr = res.x[n:2*n+1]*betas[0] + (1-res.x[n:2*n+1])*betas[1]
