@@ -5,6 +5,10 @@ from scipy.optimize import minimize
 from scipy.optimize import LinearConstraint
 import matplotlib.pyplot as plt
 
+'''
+Solves Malik's 1D problem with 0 unstretched length
+'''
+
 class LinearSystem(object):
 
     def __init__(self, m_arr, L, g):
@@ -14,7 +18,15 @@ class LinearSystem(object):
         pass
        
     
-    
+    '''
+    Args:
+    abc_arr (1D numpy array) : a1, a2, ..., b1, b2,..., c1, c2...
+    xy_target_arr (1D numpy array): target node positions (x1, y1, x2, y2,...)
+    alphas (1D numpy array) : (passive, active)
+    betas (1D numpy array) : (passive, active)
+    gammas (1D numpy array) : (passive, active)
+    num_nodes (Int) : number of nodes
+    '''
     def obj_func_L2(self, abc_arr, xy_target_arr,
                           alphas, betas, gammas, num_nodes):
                           
@@ -72,6 +84,13 @@ class LinearSystem(object):
         
         return error
   
+    '''
+    Args:
+    n (Int) : number of free nodes
+    alpha_arr (1D numpy array) : alpha1, alpha2, ...
+    beta_arr (1D numpy array) : beta1, beta2, ...
+    gamma_arr (1D numpy array) : gamma1, gamma2, ...
+    '''
     def find_xys_given_abg(self, n, alpha_arr, beta_arr, gamma_arr):
         '''print(n)
         print(alpha_arr.shape)
@@ -166,12 +185,12 @@ cnts = LinearConstraint(np.identity(3*n+1), 0, 1)
                method='BFGS', options={'gtol': 1e-6, 'disp': True})'''
 
 # Determining alpha, beta, gamma with contraints               
-'''res = minimize(ls.obj_func_L2, abc_arr, args=(xy_target_arr,
+res = minimize(ls.obj_func_L2, abc_arr, args=(xy_target_arr,
                                               alphas, betas, gammas, n),
-               method='SLSQP', constraints=cnts, options={'gtol': 1e-6, 'disp': True})'''
+               method='SLSQP', constraints=cnts, options={'gtol': 1e-6, 'disp': True})
                
 # Determining alpha, beta, gamma with extra nodes
-N = 37
+'''N = 37
 abc_arr = 0.5 + np.zeros((3*N+1,))
 cnts = LinearConstraint(np.identity(3*N+1), 0, 1)
 ls.m_arr = 0.1*np.ones((N,))
@@ -231,9 +250,9 @@ y = np.zeros((N,))
 plt.plot(s, y, color='g', marker='o')
 #plt.xlim(-0.1, 20)
 #plt.ylim(-1, 0)
-plt.show()
+plt.show()'''
 
-'''# get alpha, beta, gamma, from a,b,c
+# get alpha, beta, gamma, from a,b,c
 alpha_arr = res.x[0:n]*alphas[0] + (1-res.x[0:n])*alphas[1]
 beta_arr = res.x[n:2*n+1]*betas[0] + (1-res.x[n:2*n+1])*betas[1]
 gamma_arr = res.x[2*n+1:3*n+1]*gammas[0] + (1-res.x[2*n+1:3*n+1])*gammas[1]
@@ -273,4 +292,4 @@ y = np.zeros((n,))
 plt.plot(s, y, color='g', marker='o')
 #plt.xlim(-0.1, 20)
 #plt.ylim(-20, 20)
-plt.show()'''
+plt.show()
